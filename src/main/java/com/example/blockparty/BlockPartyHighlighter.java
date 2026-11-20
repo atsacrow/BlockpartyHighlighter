@@ -12,20 +12,21 @@ import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.item.BlockItem;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
 
 import java.util.Set;
 
 /**
- * Fabric 1.20.1 (Yarn mappings) + Fabric API.
- * Подсвечивает блоки шерсти того же цвета, что и шерсть в руке.
+ * Fabric 1.20.1 (Yarn) + Fabric API, Java 21.
+ * Пока в руке шерсть: вся шерсть вокруг красится в чёрный,
+ * а шерсть того же цвета, что в руке, в белый.
  */
 public class BlockPartyHighlighter implements ClientModInitializer {
 
-    private static final int RADIUS = 20;   // радиус поиска по горизонтали
-    private static final int DOWN = 4;      // сколько блоков вниз от игрока
+    private static final int RADIUS = 24;   // радиус поиска по горизонтали
+    private static final int DOWN = 5;      // сколько блоков вниз от игрока
     private static final int UP = 1;        // сколько вверх
+    private static final double PAD = 0.003; // небольшой отступ, чтобы не было мерцания
 
     private static final Set<Block> WOOLS = Set.of(
             Blocks.WHITE_WOOL, Blocks.ORANGE_WOOL, Blocks.MAGENTA_WOOL, Blocks.LIGHT_BLUE_WOOL,
@@ -46,7 +47,7 @@ public class BlockPartyHighlighter implements ClientModInitializer {
 
             MatrixStack matrices = ctx.matrixStack();
             Vec3d cam = ctx.camera().getPos();
-            VertexConsumer lines = ctx.consumers().getBuffer(RenderLayer.getLines());
+            VertexConsumer fill = ctx.consumers().getBuffer(RenderLayer.getDebugFilledBox());
 
             matrices.push();
             matrices.translate(-cam.x, -cam.y, -cam.z);
@@ -57,10 +58,14 @@ public class BlockPartyHighlighter implements ClientModInitializer {
                 for (int y = -DOWN; y <= UP; y++) {
                     for (int z = -RADIUS; z <= RADIUS; z++) {
                         pos.set(p.getX() + x, p.getY() + y, p.getZ() + z);
-                        if (mc.world.getBlockState(pos).getBlock() == target) {
-                            Box box = new Box(pos).expand(0.002);
-                            WorldRenderer.drawBox(matrices, lines, box, 0f, 1f, 0f, 1f);
-                        }
+                        Block b = mc.world.getBlockState(pos).getBlock();
+                        if (!WOOLS.contains(b)) continue;
+
+                        float c = (b == target) ? 1f : 0f; // 1 = белый, 0 = чёрный
+                        WorldRenderer.renderFilledBox(matrices, fill,
+                                pos.getX() - PAD, pos.getY() - PAD, pos.getZ() - PAD,
+                                pos.getX() + 1 + PAD, pos.getY() + 1 + PAD, pos.getZ() + 1 + PAD,
+                                c, c, c, 1f);
                     }
                 }
             }
